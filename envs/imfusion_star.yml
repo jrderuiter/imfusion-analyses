@@ -1,0 +1,15 @@
+name: imfusion-star
+channels:
+    - conda-forge
+    - r
+    - bioconda
+    - jrderuiter
+dependencies:
+    # General
+    - python
+
+    # IM-Fusion
+    - im-fusion
+
+    # Pipelines
+    - snakemake

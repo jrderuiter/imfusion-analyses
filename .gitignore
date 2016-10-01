@@ -1,0 +1,4 @@
+.snakemake
+data/external/*
+data/interim/*
+data/processed/*

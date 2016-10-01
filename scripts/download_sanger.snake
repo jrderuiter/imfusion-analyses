@@ -1,0 +1,102 @@
+from os import path
+import pandas as pd
+
+
+DOWNLOAD_DIR = 'tmp/download/_sanger'
+SAMPLE_PATH = 'data/processed/samples.sanger.txt'
+
+################################################################################
+# Functions                                                                    #
+################################################################################
+
+def generate_sample_list(srdf_path):
+    # Read SRDF file.
+    srdf = pd.read_csv(srdf_path, sep='\t')
+    srdf = srdf.ix[srdf['Characteristics[phenotype]'] == 'Cancer']
+
+    # Generate sample frame.
+    mice = srdf['Comment[ENA_ALIAS]'].map(lambda s: s.split('-')[0]).unique()
+
+    samples = pd.DataFrame({'sample': mice})
+    samples['fastq1'] = samples['sample'] + '.R1.fastq.gz'
+    samples['fastq2'] = samples['sample'] + '.R1.fastq.gz'
+
+    return samples
+
+
+def generate_url_map(srdf_path):
+    # Read sample definition and subset for tumors.
+    srdf = pd.read_csv(str(srdf_path), sep='\t')
+    srdf = srdf.ix[srdf['Characteristics[phenotype]'] == 'Cancer']
+
+    # Define mouse name for samples.
+    srdf['Comment[MOUSE]'] = (
+        srdf['Comment[ENA_ALIAS]']
+        .map(lambda x: x.split('-')[0]))
+
+    # Generate map.
+    url_map = {}
+    for _, row in srdf.iterrows():
+        run, pair = row['Scan Name'].split('_')
+        key = '{}.{}.R{}'.format(row['Comment[MOUSE]'], run, pair)
+        url_map[key] = row['Comment[FASTQ_URI]']
+
+    return url_map
+
+
+def get_merge_inputs(url_map, wildcards):
+    """Returns the names of the lane files for the given sample/pair."""
+
+    sample_keys = [k for k in url_map.keys()
+                   if k.startswith(wildcards.sample)
+                   and k.endswith(wildcards.pair)]
+
+
+    if len(sample_keys) == 0:
+        raise ValueError('No fastq files found for sample ({})'
+                         .format(wildcards))
+
+    file_names = sorted(k + '.fastq.gz' for k in sample_keys)
+    file_paths = [path.join(DOWNLOAD_DIR, fn) for fn in file_names]
+
+    return file_paths
+
+
+def get_download_url(url_map, wildcards):
+    """Returns the download url for the given samples fastq file."""
+    key = '{}.{}.{}'.format(wildcards.sample, wildcards.run, wildcards.pair)
+    return url_map[key]
+
+
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+samples = generate_sample_list(config['srdf'])
+url_map = generate_url_map(config['srdf'])
+
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        SAMPLE_PATH,
+        expand('data/interim/sanger/fastq/{sample}.{pair}.fastq.gz',
+               pair=['R1', 'R2'], sample=set(samples['sample']))
+
+rule generate_sample_overview:
+    output: SAMPLE_PATH
+    run:
+        samples.to_csv(output[0], sep='\t', index=False)
+
+rule download_fastq:
+    params: url=lambda wc: get_download_url(url_map, wc)
+    output: temp(path.join(DOWNLOAD_DIR, '{sample}.{run}.{pair}.fastq.gz'))
+    shell: 'wget --quiet -O {output} {params.url}'
+
+rule merge_sample_fastqs:
+    input: lambda wc: get_merge_inputs(url_map, wc)
+    output: 'data/interim/sanger/fastq/{sample}.{pair}.fastq.gz'
+    shell: 'cat {input} > {output}'

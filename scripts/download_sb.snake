@@ -1,0 +1,52 @@
+from os import path
+import pandas as pd
+
+
+DOWNLOAD_DIR = 'tmp/download/_sanger'
+SAMPLE_PATH = 'data/processed/samples.sb.txt'
+
+################################################################################
+# Functions                                                                    #
+################################################################################
+
+def generate_url_map(sample_path):
+    """Generates fastq url map from the sample frame."""
+    samples = pd.read_csv(str(sample_path), sep='\t')
+    url_map = dict(zip(samples['sample'], samples['fastq']))
+    return url_map
+
+
+def get_download_url(url_map, wildcards):
+    """Returns the download url for the given samples fastq file."""
+    return url_map[wildcards.sample]
+
+
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+samples = pd.read_csv(config['samples'], sep='\t')
+url_map = generate_url_map(config['samples'])
+
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        SAMPLE_PATH,
+        #expand('data/interim/fastq/sb/{sample}.{pair}.fastq.gz',
+        #       pair=['R1'], sample=set(samples['sample']))
+
+
+rule generate_sample_overview:
+    input: config['samples']
+    output: SAMPLE_PATH
+    shell: 'cp -v {input} {output}'
+
+
+rule download_fastq:
+    params: url=lambda wc: get_download_url(url_map, wc)
+    output: 'data/interim/sb/fastq/{sample}.{pair}.fastq.gz'
+    shell: 'wget --quiet -O {output} {params.url}'

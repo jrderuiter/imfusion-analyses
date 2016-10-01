@@ -1,0 +1,19 @@
+
+samples: data/processed/samples.sanger.txt
+
+identify_insertions:
+    reference_index: ./references/Mus_musculus.GRCm38.76.t2onc.star
+    reference_gtf: ./references/Mus_musculus.GRCm38.76.gtf
+    transposon_name: T2onc
+    transposon_features: ./references/t2onc2.features.txt
+    options:
+        - --star_external_sort
+    threads: 5
+
+call_ctgs:
+    reference_seq: data/interim/references/star/Mus_musculus.GRCm38.76.t2onc.fa
+    reference_gtf: data/external/ensembl/Mus_musculus.GRCm38.76.gtf
+    chromosomes: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 X
+    pattern: 'AT|TA'
+    threshold: 0.01
+    options:

@@ -1,0 +1,43 @@
+from os import path
+import pandas as pd
+
+################################################################################
+# Functions                                                                    #
+################################################################################
+
+
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+samples = (pd.read_csv(config['samples'], sep='\t')
+             .set_index('samples', drop=False))
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        expand(path.join(config['output_dir'], 'alignments',
+                         '{sample}', 'accepted_hits.bam'),
+               sample=set(samples['sample'])
+
+rule tophat2_align:
+    input:
+        fastq=lambda wc: samples.ix[wc.sample, 'fastq1']
+        fastq2=lambda wc: samples.ix[wc.sample, 'fastq2']
+    output:
+        path.join(config['output_dir'], 'alignments',
+                  '{sample}', 'accepted_hits.bam')
+    params:
+        index=config['tophat2_align']['reference_index'],
+        options=' '.join(config['tophat2_align']['options'] or []),
+        output_dir=path.join(config['output_dir'], 'alignments', '{sample}')
+    resources:
+        memory=30
+    threads: config['tophat2_align']['threads']
+    shell:
+        'tophat2 {params.options} --output-dir {params.output_dir}'
+        ' --num-threads {threads} {params.index}'
+        ' {params.fastq_str} {params.fastq2_str}' #2> {log}'

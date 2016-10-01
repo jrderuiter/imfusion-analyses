@@ -1,0 +1,119 @@
+from os import path
+import pandas as pd
+
+################################################################################
+# Functions                                                                    #
+################################################################################
+
+def subsample_inputs(wildcards):
+    file_name = samples.ix[wc.sample]['fastq' + wc.pair]
+    return path.join(config['fastq_dir'], file_name)
+
+def fastq_inputs(wildcards):
+    pairs = ['R1', 'R2'] if paired else ['R1']
+    return expand(path.join(subsampled_dir, '{sample}.{pair}.fastq.gz'),
+                  pair=pairs, sample=wildcards.sample)
+
+
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+samples = (pd.read_csv(config['samples'], sep='\t')
+             .set_index('sample', drop=False))
+
+aligner = config.get('aligner', 'star')
+paired = config.get(bool('paired'), True)
+
+subsampled_dir = config['fastq_dir'] + '_subsampled'
+
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        expand(path.join(config['output_dir'], '{n_reads}', 'merged.ctgs.txt'),
+               n_reads=config['n_reads'].split(','))
+
+rule subsample_fastq:
+    input: subsample_inputs
+    output: path.join(subsampled_dir, '{n_reads}', '{sample}.R{pair}.fastq.gz')
+    params:
+        n_reads=lambda wc: int(wc.n_reads) * 1000000,
+        seed=100
+    resources:
+        memory=50
+    shell:
+        'seqtk sample -s{params.seed} {input}'
+        ' {params.n_reads} | gzip > {output}'
+
+rule identify_insertions:
+    input: fastq_inputs
+    output:
+        insertions=path.join(config['output_dir'], '{n_reads}', '{sample}', 'insertions.txt'),
+        alignment=path.join(config['output_dir'], '{n_reads}', '{sample}', 'alignment.bam')
+    params:
+        index=config['identify_insertions']['reference_index'],
+        ref_gtf=config['identify_insertions']['reference_gtf'],
+        tr_name=config['identify_insertions']['transposon_name'],
+        tr_features=config['identify_insertions']['transposon_features'],
+        options=' '.join(config['identify_insertions']['options'] or []),
+        output_dir=path.join(config['output_dir'], '{sample}')
+    resources:
+        memory=30
+    threads: config['identify_insertions']['threads']
+    run:
+        cmd = (
+            'im-fusion insertions {params.aligner}'
+            ' --fastq {input[0]}'
+            ' --reference_index {params.index}'
+            ' --reference_gtf {params.ref_gtf}'
+            ' --transposon_name {params.tr_name}'
+            ' --transposon_features {params.tr_features}'
+            ' --output_dir {params.output_dir}'
+            ' --assemble'
+            ' --stringtie_threads {threads}'
+            ' {params.options}')
+
+        if paired:
+            cmd += ' --fastq2 {input[1]}'
+
+        if aligner == 'star':
+            cmd += ' --star_threads {threads}'
+        elif aligner == 'tophat2':
+            cmd += ' --tophat2_threads {threads}'
+
+        shell(cmd)
+
+rule merge:
+    input:
+        insertions=expand(path.join(config['output_dir'], '{{n_reads}}',
+                                    '{sample}', 'insertions.txt'),
+                          sample=set(samples['sample']))
+    output: path.join(config['output_dir'], '{n_reads}', 'merged.txt')
+    shell:
+        'im-fusion-merge --insertions {input} --output {output}'
+
+rule call_ctgs:
+    input: path.join(config['output_dir'], '{n_reads}', 'merged.txt')
+    output: path.join(config['output_dir'], '{n_reads}', 'merged.ctgs.txt')
+    params:
+        reference_seq=config['call_ctgs']['reference_seq'],
+        reference_gtf=config['call_ctgs']['reference_gtf'],
+        chromosomes=config['call_ctgs']['chromosomes'],
+        pattern=config['call_ctgs']['pattern'],
+        threshold=config['call_ctgs']['threshold'],
+        options=' '.join(config['call_ctgs']['options'] or [])
+    shell:
+        'im-fusion-ctg'
+        ' --insertions {input}'
+        ' --reference_seq {params.reference_seq}'
+        ' --reference_gtf {params.reference_gtf}'
+        ' --output {output}'
+        ' --chromosomes {params.chromosomes}'
+        ' --pattern "{params.pattern}"'
+        ' --threshold {params.threshold}'
+        ' {params.options}'
+
