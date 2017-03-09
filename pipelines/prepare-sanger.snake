@@ -2,9 +2,6 @@ from os import path
 import pandas as pd
 
 
-DOWNLOAD_DIR = 'tmp/download/_sanger'
-SAMPLE_PATH = 'data/processed/samples.sanger.txt'
-
 ################################################################################
 # Functions                                                                    #
 ################################################################################
@@ -19,7 +16,7 @@ def generate_sample_list(srdf_path):
 
     samples = pd.DataFrame({'sample': mice})
     samples['fastq1'] = samples['sample'] + '.R1.fastq.gz'
-    samples['fastq2'] = samples['sample'] + '.R1.fastq.gz'
+    samples['fastq2'] = samples['sample'] + '.R2.fastq.gz'
 
     return samples
 
@@ -44,7 +41,52 @@ def generate_url_map(srdf_path):
     return url_map
 
 
-def get_merge_inputs(url_map, wildcards):
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+download_dir = config.get('download_dir', 'tmp/download/_sanger')
+sample_path = config.get('sample_path', 'data/processed/sanger/samples.txt')
+
+samples = generate_sample_list(config['srdf'])
+url_map = generate_url_map(config['srdf'])
+
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        sample_path,
+        expand('data/interim/sanger/fastq/{sample}.{pair}.fastq.gz',
+               pair=['R1', 'R2'], sample=set(samples['sample']))
+
+rule generate_sample_overview:
+    output:
+        sample_path
+    run:
+        samples.to_csv(output[0], sep='\t', index=False)
+
+
+def download_url(url_map, wildcards):
+    """Returns the download url for the given samples fastq file."""
+    key = '{}.{}.{}'.format(wildcards.sample, wildcards.run, wildcards.pair)
+    return url_map[key]
+
+
+rule download_fastq:
+    params:
+        url=lambda wc: download_url(url_map, wc)
+    output:
+        temp(path.join(download_dir, '{sample}.{run}.{pair}.fastq.gz'))
+    resources:
+        network=1
+    shell:
+        'wget --quiet -O {output} {params.url}'
+
+
+def merge_inputs(url_map, wildcards):
     """Returns the names of the lane files for the given sample/pair."""
 
     sample_keys = [k for k in url_map.keys()
@@ -57,46 +99,15 @@ def get_merge_inputs(url_map, wildcards):
                          .format(wildcards))
 
     file_names = sorted(k + '.fastq.gz' for k in sample_keys)
-    file_paths = [path.join(DOWNLOAD_DIR, fn) for fn in file_names]
+    file_paths = [path.join(download_dir, fn) for fn in file_names]
 
     return file_paths
 
 
-def get_download_url(url_map, wildcards):
-    """Returns the download url for the given samples fastq file."""
-    key = '{}.{}.{}'.format(wildcards.sample, wildcards.run, wildcards.pair)
-    return url_map[key]
-
-
-################################################################################
-# Globals                                                                      #
-################################################################################
-
-samples = generate_sample_list(config['srdf'])
-url_map = generate_url_map(config['srdf'])
-
-
-################################################################################
-# Rules                                                                        #
-################################################################################
-
-rule all:
-    input:
-        SAMPLE_PATH,
-        expand('data/interim/sanger/fastq/{sample}.{pair}.fastq.gz',
-               pair=['R1', 'R2'], sample=set(samples['sample']))
-
-rule generate_sample_overview:
-    output: SAMPLE_PATH
-    run:
-        samples.to_csv(output[0], sep='\t', index=False)
-
-rule download_fastq:
-    params: url=lambda wc: get_download_url(url_map, wc)
-    output: temp(path.join(DOWNLOAD_DIR, '{sample}.{run}.{pair}.fastq.gz'))
-    shell: 'wget --quiet -O {output} {params.url}'
-
 rule merge_sample_fastqs:
-    input: lambda wc: get_merge_inputs(url_map, wc)
-    output: 'data/interim/sanger/fastq/{sample}.{pair}.fastq.gz'
-    shell: 'cat {input} > {output}'
+    input:
+        lambda wc: merge_inputs(url_map, wc)
+    output:
+        'data/interim/sanger/fastq/{sample}.{pair}.fastq.gz'
+    shell:
+        'cat {input} > {output}'

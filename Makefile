@@ -1,28 +1,30 @@
-.PHONY: clean env env_tophat lint requirements
+.PHONY: clean clean_data env env_tophat lint requirements
 
 ################################################################################
 # GLOBALS                                                                      #
 ################################################################################
 
+SNAKEMAKE = snakemake
 SNAKEMAKE_ARGS =
 
 ENSEMBL_FASTA = data/external/ensembl/Mus_musculus.GRCm38.dna.primary_assembly.fa
 ENSEMBL_GTF =  data/external/ensembl/Mus_musculus.GRCm38.76.gtf
 DEXSEQ_GTF = data/external/ensembl/Mus_musculus.GRCm38.76.DEXSeq.gtf
 
+TRANSPOSON_FASTA = src/im-fusion/data/t2onc/t2onc2.sequence.fa
+TRANSPOSON_FEATURES = src/im-fusion/data/t2onc/t2onc2.features.txt
+
+FUSION_FINDER_INDEX = data/interim/references/fusion-finder/Mus_musculus.GRCm38.76.t2onc.tophat2
 
 ################################################################################
 # COMMANDS                                                                     #
 ################################################################################
 
 env:
-	conda env create -f envs/imfusion_star.yml
+	conda env create -f envs/imfusion.yml
 
 env_tophat:
-	conda env create -f envs/imfusion_tophat.yml
-
-env_htseq:
-	conda env create -f envs/htseq.yml
+	conda env create -f envs/imfusion-tophat.yml
 
 clean:
 	find . -name '*.pyc' -exec rm {} \;
@@ -39,54 +41,133 @@ lint:
 # PROJECT RULES                                                                #
 ################################################################################
 
-download_sanger:
-	snakemake -s scripts/download_sanger.snake -p $(SNAKEMAKE_ARGS) \
-		--config srdf=data/external/E-ERAD-264.sdrf.txt \
-
-download_sb:
-	snakemake -s scripts/download_sb.snake -p $(SNAKEMAKE_ARGS) \
-	    --config samples=data/raw/samples.sb.txt
-
 build_reference_star: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
-	im-fusion build star --reference_seq $(ENSEMBL_FASTA) \
-		--reference_gtf $(ENSEMBL_GTF) --transposon_seq $(TRANSPOSON_FASTA) \
-        --output_base data/interim/references/star/Mus_musculus.GRCm38.t2onc
+	imfusion-build star \
+		--reference_seq $(ENSEMBL_FASTA) \
+		--reference_gtf $(ENSEMBL_GTF) \
+		--transposon_seq $(TRANSPOSON_FASTA) \
+		--transposon_features $(TRANSPOSON_FEATURES) \
+		--output_dir data/interim/references/imfusion/GRCm38.76.t2onc.star \
+		--blacklist_genes ENSMUSG00000039095 ENSMUSG00000038402 \
+		--overhang 100
 
-build_reference_tophat2: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
-	im-fusion build tophat2 --reference_seq $(ENSEMBL_FASTA) \
-		--reference_gtf $(ENSEMBL_GTF) --transposon_seq $(TRANSPOSON_FASTA) \
-        --output_base data/interim/references/tophat2/Mus_musculus.GRCm38.t2onc
+build_reference_tophat: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
+	imfusion-build tophat \
+		--reference_seq $(ENSEMBL_FASTA) \
+		--reference_gtf $(ENSEMBL_GTF) \
+		--transposon_seq $(TRANSPOSON_FASTA) \
+		--transposon_features $(TRANSPOSON_FEATURES) \
+		--output_dir data/interim/references/imfusion/GRCm38.76.t2onc.tophat \
+		--blacklist_genes ENSMUSG00000039095 ENSMUSG00000038402
 
-imfusion_sb: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
-	snakemake -s scripts/imfusion.snake -p $(SNAKEMAKE_ARGS) \
-		--configfile configs/sb.yml
+build_reference_fusion_finder: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
+	mkdir -p $(dir $(FUSION_FINDER_INDEX))
+	bedtools maskfasta \
+		-fi $(ENSEMBL_FASTA) \
+		-bed data/raw/fusion-finder/mask_regions.bed \
+		-fo $(FUSION_FINDER_INDEX).fa
+	cat $(TRANSPOSON_FASTA) >> $(FUSION_FINDER_INDEX).fa
+	bowtie2-build $(FUSION_FINDER_INDEX).fa $(FUSION_FINDER_INDEX)
+	tophat2 -G $(ENSEMBL_GTF) \
+		--transcriptome-index=$(FUSION_FINDER_INDEX).transcriptome \
+		$(FUSION_FINDER_INDEX)
+	rm -rf ./tophat_out
+
+sb_prepare:
+	$(SNAKEMAKE) -s pipelines/prepare-sb.snake -p $(SNAKEMAKE_ARGS) \
+	    --config samples=data/raw/sb/samples.txt \
+				 fastq_dir=data/interim/sb/fastq \
+				 sample_out_path=data/processed/sb/samples.txt
+
+sb_imfusion: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
+	$(SNAKEMAKE) -s pipelines/imfusion.snake $(SNAKEMAKE_ARGS) \
+		--configfile configs/sb-imfusion.yml \
 		--config fastq_dir='data/interim/sb/fastq' \
-			     output_dir='data/processed/sb' \
+				 interim_dir='data/interim/sb/star' \
+			     processed_dir='data/processed/sb/star' \
+				 log_dir='logs/sb/star' \
 				 paired=False
 
-imfusion_sanger: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
-	snakemake -s scripts/imfusion.snake -p $(SNAKEMAKE_ARGS) \
-		--configfile configs/sanger.yml \
+sb_star_fusion:
+	$(SNAKEMAKE) -s pipelines/star-fusion.snake $(SNAKEMAKE_ARGS) \
+	    --configfile configs/star-fusion.yml \
+		--config fastq_dir='data/interim/sb/fastq' \
+			     interim_dir='data/interim/sb/star-fusion' \
+			     processed_dir='data/processed/sb/star-fusion' \
+				 log_dir='logs/sb/star-fusion' \
+				 samples='data/processed/sb/samples.txt' \
+				 paired=False
+
+sb_gene_expression: # sb_imfusion
+	featureCounts -a data/external/ensembl/Mus_musculus.GRCm38.76.gtf \
+		-o data/processed/sb/star/expression.fc_gene.txt -T 6 \
+		`find data/interim/sb/star -name 'alignment.bam'`
+
+sanger_prepare:
+	$(SNAKEMAKE) -s pipelines/prepare-sanger.snake -p $(SNAKEMAKE_ARGS) \
+		--config srdf=data/external/E-ERAD-264.sdrf.txt \
+		 	     sample_path=data/processed/sanger/samples.txt \
+				 download_dir=tmp/download/_sanger
+	rm -rf tmp/download/_sanger
+
+
+sanger_imfusion: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
+	$(SNAKEMAKE) -s pipelines/imfusion.snake $(SNAKEMAKE_ARGS) \
+		--configfile configs/sanger-imfusion.yml \
 		--config fastq_dir='data/interim/sanger/fastq' \
-			     output_dir='data/processed/sanger'
+			     interim_dir='data/interim/sanger/star' \
+			     processed_dir='data/processed/sanger/star' \
+				 log_dir='logs/sanger/star' \
+				 paired=True \
+				 aligner=star
 
-imfusion_sanger_tophat2: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
-	snakemake -s scripts/imfusion.snake -p $(SNAKEMAKE_ARGS) \
-		--configfile configs/sanger.yml \
+sanger_imfusion_single: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
+	$(SNAKEMAKE) -s pipelines/imfusion.snake $(SNAKEMAKE_ARGS) \
+		--configfile configs/sanger-imfusion.yml \
 		--config fastq_dir='data/interim/sanger/fastq' \
-			     output_dir='data/processed/sanger-tophat2'
+			     interim_dir='data/interim/sanger/star-single' \
+			     processed_dir='data/processed/sanger/star-single' \
+				 log_dir='logs/sanger/star-single' \
+				 paired=False \
+				 aligner=star
 
-imfusion_sanger_subsample: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
-	snakemake -s scripts/imfusion_subsample.snake -p $(SNAKEMAKE_ARGS) \
-		--configfile configs/sanger.yml \
+sanger_imfusion_subsample: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
+	snakemake -s pipelines/imfusion-subsample.snake $(SNAKEMAKE_ARGS) \
+		--configfile configs/sanger-imfusion.yml \
 		--config fastq_dir='data/interim/sanger/fastq' \
-				 output_dir='data/processed/sanger-subsample' \
-				 n_reads='15,25,50,70'
+			     interim_dir='data/interim/sanger/star-subsample' \
+			     processed_dir='data/processed/sanger/star-subsample' \
+				 log_dir='logs/sanger/star-subsample' \
+				 paired=True \
+				 aligner=star \
+				 n_reads='15,30,50,70'
 
-fusion_finder_sanger:
-	snakemake -s scripts/fusion_finder.snake -p $(SNAKEMAKE_ARGS) \
-		--configfile configs/fusion_finder.yml
+sanger_imfusion_tophat: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
+	$(SNAKEMAKE) -s pipelines/imfusion.snake $(SNAKEMAKE_ARGS) \
+		--configfile configs/sanger-imfusion-tophat.yml \
+		--config fastq_dir='data/interim/sanger/fastq' \
+			     interim_dir='data/interim/sanger/tophat' \
+			     processed_dir='data/processed/sanger/tophat' \
+				 log_dir='logs/sanger/tophat' \
+				 paired=True \
+				 aligner=tophat
 
+sanger_fusion_finder:
+	$(SNAKEMAKE) -s pipelines/fusion-finder.snake $(SNAKEMAKE_ARGS) \
+		--configfile configs/sanger-fusion-finder.yml \
+		--config fastq_dir='data/interim/sanger/fastq' \
+				 interim_dir='data/interim/sanger/fusion-finder' \
+				 processed_dir='data/processed/sanger/fusion-finder' \
+				 log_dir='logs/sanger/fusion-finder'
+
+sanger_star_fusion:
+	$(SNAKEMAKE) -s pipelines/star-fusion.snake $(SNAKEMAKE_ARGS) \
+	    --configfile configs/star-fusion.yml \
+		--config fastq_dir='data/interim/sanger/fastq' \
+			     interim_dir='data/interim/sanger/star-fusion' \
+			     processed_dir='data/processed/sanger/star-fusion' \
+				 log_dir='logs/sanger/star-fusion' \
+				 samples='data/processed/sanger/samples.txt'
 
 ################################################################################
 # External files                                                               #
@@ -95,7 +176,7 @@ fusion_finder_sanger:
 data/external/ensembl/Mus_musculus.GRCm38.dna.primary_assembly.fa:
 	wget --quiet -P data/external/ensembl ftp://ftp.ensembl.org/pub/release-76/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz
 	gunzip data/external/ensembl/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz
-	# samtools faidx data/external/ensembl/Mus_musculus.GRCm38.dna.primary_assembly.fa
+	samtools faidx data/external/ensembl/Mus_musculus.GRCm38.dna.primary_assembly.fa
 
 data/external/ensembl/Mus_musculus.GRCm38.76.gtf:
 	wget --quiet -P data/external/ensembl ftp://ftp.ensembl.org/pub/release-76/gtf/mus_musculus/Mus_musculus.GRCm38.76.gtf.gz

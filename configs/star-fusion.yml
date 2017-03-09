@@ -1,0 +1,6 @@
+
+star:
+    index: data/interim/references/star-fusion/Mus_musculus.GRCm38.76/ref_genome.fa.star.idx
+
+star_fusion:
+    genome_lib: data/interim/references/star-fusion/Mus_musculus.GRCm38.76

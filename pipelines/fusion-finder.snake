@@ -1,0 +1,116 @@
+from os import path
+import pandas as pd
+
+################################################################################
+# Functions                                                                    #
+################################################################################
+
+def get_samples():
+    return sorted(set(samples['sample']))
+
+
+def fastq_inputs(wildcards):
+    return expand(path.join(fastq_dir, '{sample}.{pair}.fastq.gz'),
+                  pair=['R1', 'R2'], sample=wildcards.sample)
+
+
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+samples = (pd.read_csv(config['samples'], sep='\t')
+             .set_index('sample', drop=False))
+
+interim_dir = config.get('interim_dir', 'data/interim')
+processed_dir = config.get('processed_dir', 'data/processed')
+log_dir = config.get('log_dir', 'logs')
+
+fastq_dir = config['fastq_dir']
+
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        path.join(processed_dir, 'fus.txt')
+
+
+rule tophat:
+    input:
+        fastq_inputs
+    output:
+        path.join(interim_dir, 'alignments',
+                  '{sample}', 'accepted_hits.bam')
+    params:
+        index=config['tophat']['reference_index'],
+        transcriptome=config['tophat']['transcriptome_index'],
+        options=' '.join(config['tophat']['options'] or []),
+        output_dir=path.join(interim_dir, 'alignments', '{sample}')
+    resources:
+        memory=8
+    threads:
+        config['tophat']['threads']
+    log:
+        path.join(log_dir, 'tophat', '{sample}.log')
+    shell:
+        'tophat2 {params.options} --output-dir {params.output_dir}'
+        ' --num-threads {threads}'
+        ' --transcriptome-index {params.transcriptome}'
+        ' {params.index} {input[0]} {input[1]} 2> {log}'
+
+
+rule samtools_index:
+    input:
+        path.join(interim_dir, 'alignments',
+                  '{sample}', 'accepted_hits.bam')
+    output:
+        path.join(interim_dir, 'alignments',
+                  '{sample}', 'accepted_hits.bam.bai')
+    shell:
+        'samtools index {input}'
+
+
+rule create_inputs:
+    input:
+        expand(path.join(interim_dir, 'alignments',
+                         '{sample}', 'accepted_hits.bam'),
+               sample=get_samples())
+    output:
+        temp('input.txt')
+    run:
+        df = pd.DataFrame.from_records(
+            (path.abspath(in_),
+             path.basename(path.dirname(in_)),
+             'loc_SB')
+            for in_ in input
+        )
+        df.to_csv(str(output[0]), sep='\t', header=False, index=False)
+
+
+rule fusion_finder:
+    input:
+        'input.txt',
+        expand(path.join(interim_dir, 'alignments',
+                         '{sample}', 'accepted_hits.bam.bai'),
+               sample=get_samples())
+    output:
+        path.join(processed_dir, 'fus.txt')
+    params:
+        loc_sb='data/raw/fusion-finder/loc_SB.txt',
+        script_path='src/FUSION_FINDER/FUSION_FINDER.pl'
+    log:
+        path.join(log_dir, 'fusion_finder.log')
+    run:
+        # Copy files and run Fusion Finder.
+        shell('cp {params.loc_sb} ./')
+        shell('mkdir -p Results working')
+        shell('perl {params.script_path} > {log}')
+
+        # Move outputs.
+        output_dir = path.dirname(output[0])
+        shell('mv Results/* {}/'.format(output_dir))
+
+        # Remove temporary files.
+        shell('rm -rf working Results loc_SB.txt')

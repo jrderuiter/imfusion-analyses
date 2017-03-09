@@ -1,0 +1,145 @@
+from os import path
+import pandas as pd
+
+
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+samples = (pd.read_csv(config['samples'], sep='\t')
+             .set_index('sample', drop=False))
+
+aligner = config.get('aligner', 'star')
+paired = config.get('paired', True) == 'True'
+
+# Top-level data directories.
+interim_dir = config.get('interim_dir', 'data/interim')
+processed_dir = config.get('processed_dir', 'data/processed')
+log_dir = config.get('log_dir', 'logs')
+
+# More fine-grained paths.
+fastq_dir = config['fastq_dir']
+
+
+################################################################################
+# Functions                                                                    #
+################################################################################
+
+def fastq_inputs(wildcards):
+    pairs = ['.R1', '.R2'] if paired else ['.R1']
+    return expand(path.join(fastq_dir, '{sample}{pair}.fastq.gz'),
+                  pair=pairs, sample=wildcards.sample)
+
+def get_samples():
+    return sorted(set(samples['sample']))
+
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        path.join(processed_dir, 'ctgs.txt'),
+        path.join(processed_dir, 'insertions.txt')
+
+
+rule identify_insertions:
+    input: fastq_inputs
+    output:
+        sample_dir=path.join(interim_dir, '{sample}'),
+        insertions=path.join(interim_dir, '{sample}', 'insertions.txt'),
+        # alignment=path.join(interim_dir, '{sample}', 'alignment.bam')
+    params:
+        aligner=aligner,
+        reference=config['identify_insertions']['reference'],
+        options=' '.join(config['identify_insertions']['options'] or []),
+    resources:
+        memory=30
+    threads:
+        config['identify_insertions']['threads']
+    log:
+        path.join(log_dir, 'identify_insertions', '{sample}.log')
+    run:
+        cmd = (
+            'imfusion-insertions {params.aligner}'
+            ' --fastq {input[0]}'
+            ' --reference {params.reference}'
+            ' --output_dir {output.sample_dir}'
+            ' --assemble'
+            ' {params.options}')
+
+        if paired:
+            cmd += ' --fastq2 {input[1]}'
+
+        if aligner == 'star':
+            cmd += ' --star_threads {threads}'
+        elif aligner == 'tophat':
+            cmd += ' --tophat_threads {threads}'
+
+        cmd += ' 2> {log}'
+
+        shell(cmd)
+
+rule quantify_expression:
+    input:
+        sample_dir=path.join(interim_dir, '{sample}')
+        # sample_bam=path.join(interim_dir, '{sample}', 'alignment.bam')
+    output:
+        path.join(interim_dir, '{sample}', 'expression.txt')
+    params:
+        exon_gtf=config['quantify_expression']['exon_gtf'],
+        options=' '.join(config['quantify_expression']['options'] or [])
+    log:
+        path.join(log_dir, 'expression', '{sample}.log')
+    shell:
+        'imfusion-expression --sample_dir {input.sample_dir}'
+        ' --exon_gtf {params.exon_gtf} {params.options} 2> {log}'
+
+rule merge:
+    input:
+        sample_dirs=expand(
+            path.join(interim_dir, '{sample}'),
+            sample=get_samples()),
+        insertions=expand(
+            path.join(interim_dir, '{sample}', 'insertions.txt'),
+            sample=get_samples()),
+        expression=expand(
+            path.join(interim_dir, '{sample}', 'expression.txt'),
+            sample=get_samples())
+    output:
+        insertions=path.join(config['processed_dir'], 'insertions.txt'),
+        expression=path.join(config['processed_dir'], 'expression.txt')
+    shell:
+        'imfusion-merge'
+        ' --sample_dirs {input.sample_dirs}'
+        ' --output {output.insertions}'
+        ' --output_expression {output.expression}'
+
+rule call_ctgs:
+    input:
+        insertions=path.join(processed_dir, 'insertions.txt'),
+        expression=path.join(processed_dir, 'expression.txt')
+    output:
+        path.join(processed_dir, 'ctgs.txt')
+    params:
+        reference=config['call_ctgs']['reference'],
+        chromosomes=config['call_ctgs']['chromosomes'],
+        pattern=config['call_ctgs']['pattern'],
+        min_depth=config['call_ctgs']['min_depth'],
+        threshold=config['call_ctgs']['threshold'],
+        exon_gtf=config['call_ctgs']['exon_gtf'],
+        de_threshold=config['call_ctgs']['de_threshold'],
+        options=' '.join(config['call_ctgs']['options'] or [])
+    shell:
+        'imfusion-ctg'
+        ' --insertions {input.insertions}'
+        ' --reference {params.reference}'
+        ' --output {output}'
+        ' --chromosomes {params.chromosomes}'
+        ' --pattern "{params.pattern}"'
+        ' --min_depth {params.min_depth}'
+        ' --threshold {params.threshold}'
+        ' --expression {input.expression}'
+        ' --de_threshold {params.de_threshold}'
+        ' {params.options}'

@@ -1,0 +1,109 @@
+from os import path
+import pandas as pd
+
+
+################################################################################
+# Globals                                                                      #
+################################################################################
+
+samples = (pd.read_csv(config['samples'], sep='\t')
+             .set_index('sample', drop=False))
+paired = config.get('paired', True) == 'True'
+
+# Top-level data directories.
+interim_dir = config.get('interim_dir', 'data/interim')
+processed_dir = config.get('processed_dir', 'data/processed')
+log_dir = config.get('log_dir', 'logs')
+
+# More fine-grained paths.
+fastq_dir = config['fastq_dir']
+
+
+################################################################################
+# Functions                                                                    #
+################################################################################
+
+def fastq_inputs(wildcards):
+    pair = ['.R1', '.R2'] if paired else ['.R1']
+    return expand(path.join(fastq_dir, '{sample}{pair}.fastq.gz'),
+                  pair=pair, sample=wildcards.sample)
+
+def get_samples():
+    return sorted(set(samples['sample']))
+
+
+################################################################################
+# Rules                                                                        #
+################################################################################
+
+rule all:
+    input:
+        expand(path.join(interim_dir, 'fusions', '{sample}',
+                         'star-fusion.fusion_candidates.final.abridged'),
+               sample=get_samples()),
+        expand(path.join(interim_dir, 'alignments', '{sample}',
+               'Aligned.sortedByCoord.out.bam'),
+               sample=get_samples())
+
+
+rule star:
+    input:
+        fastq_inputs
+    output:
+        dir=path.join(interim_dir, 'alignments', '{sample}'),
+        bam=temp(path.join(interim_dir, 'alignments',
+                           '{sample}', 'Aligned.out.bam')),
+        junctions=path.join(interim_dir, 'alignments', '{sample}',
+                            'Chimeric.out.junction')
+    params:
+        index=config['star']['index']
+    resources:
+        memory=30
+    threads: 5
+    log:
+        path.join(log_dir, 'star', '{sample}.log')
+    run:
+        shell('mkdir -p {output.dir}')
+        shell('STAR --genomeDir {params.index}'
+              ' --readFilesIn {input}'
+              ' --outFileNamePrefix {output.dir}/'
+              ' --twopassMode Basic'
+              ' --outReadsUnmapped None'
+              ' --chimSegmentMin 12'
+              ' --chimJunctionOverhangMin 12'
+              ' --alignSJDBoverhangMin 10'
+              ' --alignMatesGapMax 200000'
+              ' --alignIntronMax 200000'
+              ' --chimSegmentReadGapMax parameter 3'
+              ' --alignSJstitchMismatchNmax 5 -1 5 5'
+              ' --runThreadN {threads}'
+              ' --readFilesCommand gunzip -c'
+              ' --outSAMtype BAM Unsorted > {log}')
+
+
+rule sort_bam:
+    input:
+        path.join(interim_dir, 'alignments', '{sample}', 'Aligned.out.bam')
+    output:
+        path.join(interim_dir, 'alignments', '{sample}',
+                  'Aligned.sortedByCoord.out.bam')
+    run:
+        shell('samtools sort -o {output} {input}')
+        shell('samtools index {output}')
+
+
+rule star_fusion:
+    input:
+        path.join(interim_dir, 'alignments', '{sample}',
+                  'Chimeric.out.junction')
+    output:
+        dir=path.join(interim_dir, 'fusions', '{sample}'),
+        fusions=path.join(interim_dir, 'fusions', '{sample}',
+                          'star-fusion.fusion_candidates.final.abridged')
+    params:
+        genome_lib=config['star_fusion']['genome_lib']
+    log:
+        path.join(log_dir, 'star_fusion', '{sample}.log')
+    shell:
+        'STAR-Fusion --genome_lib_dir {params.genome_lib}'
+        ' -J {input} --output_dir {output.dir}/ 2> {log}'

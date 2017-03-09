@@ -1,0 +1,8 @@
+
+samples: data/processed/sanger/samples.txt
+
+tophat:
+    reference_index: data/interim/references/fusion-finder/Mus_musculus.GRCm38.76.t2onc.tophat2
+    transcriptome_index: data/interim/references/fusion-finder/Mus_musculus.GRCm38.76.t2onc.tophat2.transcriptome
+    options:
+    threads: 5
