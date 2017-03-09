@@ -1,0 +1,31 @@
+name: imfusion
+channels:
+    - bioconda
+    - r
+    - defaults
+    - conda-forge
+    - jrderuiter
+dependencies:
+    # General
+    - python =3.5.*
+    - pandas =0.19.*
+    - seaborn
+
+    # IM-Fusion
+    - imfusion =0.2.0.dev0
+    - star =2.5.2b
+    - stringtie =1.3.0
+    - subread =1.5.0.post3
+    - r =3.3.1
+
+    # Jupyter notebook
+    - jupyter
+    - notebook
+    - openpyxl
+
+    # Snakemake
+    - snakemake =3.8.2
+    - pyyaml
+
+    # Subsampling pipeline
+    - seqtk =1.2

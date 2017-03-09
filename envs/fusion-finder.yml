@@ -1,0 +1,18 @@
+name: fusion-finder
+channels:
+    - bioconda
+    - r
+    - defaults
+    - conda-forge
+dependencies:
+    # General
+    - python =2.7.*
+    - pandas =0.19.*
+
+    # IM-Fusion
+    - tophat =2.1.0
+    - samtools
+
+    # Snakemake
+    - snakemake =3.8.2
+    - pyyaml
