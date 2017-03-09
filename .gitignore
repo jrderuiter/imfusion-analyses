@@ -1,4 +1,16 @@
 .snakemake
+.vscode
+
 data/external/*
 data/interim/*
 data/processed/*
+
+*.pyc
+__pycache__
+.ipynb_checkpoints
+
+.DS_Store
+._*
+
+_old
+tmp
