@@ -1,6 +1,23 @@
+.. _getting-started:
+
+===============
 Getting started
 ===============
 
-This is where you describe how to get set up on a clean install, including the
-commands necessary to get the raw data (using the `sync_data_from_s3` command,
-for example), and then how to make the cleaned, final data sets.
+Setting up the environment
+==========================
+
+We use conda to ensure to create an isolated environment containing all of the
+Python packages and external tools needed for the analyses. To create the conda
+environment used for our analyses, run the following command from the root
+directory:
+
+Generating the datasets
+=======================
+
+Pre-computed
+------------
+
+
+From scratch
+------------

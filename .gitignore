@@ -17,6 +17,7 @@ _pybiomart_cache.sqlite
 
 _old
 _bak
+docs/_build
 logs/*
 reports/*
 tmp

@@ -29,3 +29,9 @@ dependencies:
 
     # Subsampling pipeline
     - seqtk =1.2
+
+    - sphinx
+    - sphinx_rtd_theme
+
+    - pip:
+        - sphinx-autobuild
