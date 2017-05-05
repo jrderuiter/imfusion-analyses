@@ -112,7 +112,8 @@ def plot_insertion(insertion,
         height=0.5,
         hue='orientation',
         palette=palette,
-        hue_order=['sense', 'antisense'])
+        hue_order=['sense', 'antisense'],
+        patch_kws={'lw': 0.5, 'edgecolor': 'black'})
 
     # Gene track.
     gene_track = BiomartTrack(
@@ -213,23 +214,22 @@ def plot_de_multiple(insertions,
                      exon_counts,
                      gene_ids,
                      gene_names=None,
-                     fig_axes=None,
-                     ncols=3):
+                     figsize=(4, 3),
+                     ncols=3,
+                     **kwargs):
     """Plots groupwise DE for multiple genes."""
 
-    if fig_axes is None:
-        nrows = len(gene_ids) // ncols
-        if len(gene_ids) % ncols == 0:
-            nrows += 1
-        fig, axes = plt.subplots(ncols=ncols, nrows=nrows)
-    else:
-        fig, axes = fig_axes
+    nrows = len(gene_ids) // ncols
+    if len(gene_ids) % ncols != 0:
+        nrows += 1
+    fig, axes = plt.subplots(ncols=ncols, nrows=nrows, figsize=figsize)
 
     if gene_names is None:
         gene_names = gene_ids
 
     for gene_id, gene_name, ax in zip(gene_ids, gene_names, axes.flatten()):
-        plot_de(insertions, exon_counts, gene_id, gene_name=gene_name, ax=ax)
+        plot_de(insertions, exon_counts, gene_id,
+                gene_name=gene_name, ax=ax, **kwargs)
 
     tidy_shared_axes(fig, axes, ylabel_x=-0.01)
 
@@ -244,6 +244,7 @@ def plot_de(insertions,
             gene_id,
             gene_name=None,
             ax=None,
+            box_kws=None,
             **kwargs):
     """Plots groupwise DE for a given gene."""
 
@@ -253,7 +254,8 @@ def plot_de(insertions,
     result = test_de_exon(insertions, exon_counts, gene_id=gene_id, **kwargs)
 
     ax = result.plot_boxplot(
-        ax=ax, log=True, show_points=False, box_kws={'color': 'lightgrey'})
+        ax=ax, log=True, show_points=False,
+        box_kws=toolz.merge({'color': 'lightgrey'}, box_kws or {}))
 
     pval_label = _format_pval(result.p_value)
     ax.set_title('{} ({})'.format(gene_name, pval_label), fontstyle='italic')
@@ -267,3 +269,63 @@ def _format_pval(p_value):
         return 'p < 0.0001'
     else:
         return 'p = {:5.4f}'.format(p_value)
+
+
+def plot_insertion_track(insertions,
+                         region,
+                         gene=None,
+                         transcript_id=None,
+                         ins_ratio=1 / 25,
+                         linewidth=0.5,
+                         bm_host='http://www.ensembl.org',
+                         bm_gene_name='external_gene_name',
+                         **kwargs):
+    ori_order = ['sense', 'antisense']
+    ori_palette = [sns.color_palette()[0], sns.color_palette()[2]]
+
+    width = (region[2] - region[1]) * ins_ratio
+
+    if 'gene_orientation' in insertions:
+        hue = 'gene_orientation'
+    else:
+        hue = None
+
+    ins_track = FeatureTrack.from_position(
+        data=insertions,
+        width=width,
+        height=0.25,
+        hue=hue,
+        hue_order=ori_order,
+        palette=ori_palette,
+        patch_kws={'edgecolor': 'black',
+                   'linewidth': linewidth})
+
+    if gene is not None:
+        filter = 'gene_name == {!r}'.format(gene)
+    elif transcript_id is not None:
+        filter = 'transcript_id == {!r}'.format(transcript_id)
+    else:
+        filter = None
+
+    gene_track = BiomartTrack(
+        dataset='mmusculus_gene_ensembl',
+        host=bm_host,
+        height=0.4,
+        collapse='transcript',
+        filter=filter,
+        gene_id='gene_name',
+        patch_kws={'linewidth': linewidth},
+        line_kws={'lw': 1},
+        label_kws={'fontstyle': 'italic'},
+        bm_gene_name=bm_gene_name)
+
+    fig = plot_tracks(
+        [ins_track, gene_track],
+        region=region,
+        despine=True,
+        **kwargs)
+
+    fig.axes[0].set_title('Insertions')
+    fig.axes[-1].set_xlabel('Chromosome {}'.format(region[0]))
+
+    return fig

@@ -73,7 +73,9 @@ build_reference_fusion_finder: $(ENSEMBL_FASTA) $(ENSEMBL_GTF)
 		$(FUSION_FINDER_INDEX)
 	rm -rf ./tophat_out
 
-sb_prepare:
+shear_splink_download: data/external/shear_splink
+
+sb_download:
 	$(SNAKEMAKE) -s pipelines/prepare-sb.snake -p $(SNAKEMAKE_ARGS) \
 	    --config samples=data/raw/sb/samples.txt \
 				 fastq_dir=data/interim/sb/fastq \
@@ -103,9 +105,9 @@ sb_gene_expression: # sb_imfusion
 		-o data/processed/sb/star/expression.fc_gene.txt -T 6 \
 		`find data/interim/sb/star -name 'alignment.bam'`
 
-sanger_prepare:
+sanger_download:
 	$(SNAKEMAKE) -s pipelines/prepare-sanger.snake -p $(SNAKEMAKE_ARGS) \
-		--config srdf=data/external/E-ERAD-264.sdrf.txt \
+		--config srdf=data/raw/sanger/E-ERAD-264.sdrf.txt \
 		 	     sample_path=data/processed/sanger/samples.txt \
 				 download_dir=tmp/download/_sanger
 	rm -rf tmp/download/_sanger
@@ -184,3 +186,10 @@ data/external/ensembl/Mus_musculus.GRCm38.76.gtf:
 
 data/external/ensembl/Mus_musculus.GRCm38.76.DEXSeq.gtf: $(ENSEMBL_GTF)
 	python scripts/dexseq_prepare_annotation.py --aggregate=no $(ENSEMBL_GTF) data/external/ensembl/Mus_musculus.GRCm38.76.DEXSeq.gtf
+
+data/external/shear_splink:
+	wget -O tmp/processed_freeze.tar.gz https://ndownloader.figshare.com/files/8297795?private_link=dd2515b13a5d022eba4d
+	mkdir -p tmp/sb_screen
+	tar -xf tmp/processed_freeze.tar.gz --directory tmp/sb_screen
+	mv tmp/sb_screen/sb/shear_splink/full/all data/external/shear_splink
+	rm -rf tmp/processed_freeze.tar.gz tmp/sb_screen

@@ -13,8 +13,8 @@ from imfusion.expression import test_de
 from imfusion.model import Insertion
 
 
-RANK_TYPES = ['Shared', 'Shared, no CTG', 'Shared, not DE',
-              'Shared, no CTG, not DE', 'Not shared']  # yapf: disable
+RANK_TYPES = ['Shared', 'Shared, no CIS/CTG', 'Shared, not DE',
+              'Shared, no CIS/CTG, not DE', 'Not shared']  # yapf: disable
 
 
 def compare_ranks(ranks_a, ranks_b, suffixes):
@@ -143,9 +143,9 @@ def _rank_type(row):
     else:
         if (row.ctg_rna and row.ins_dna) or (row.ctg_dna and row.ins_rna):
             if row.is_de:
-                return 'Shared, no CTG'
+                return 'Shared, no CIS/CTG'
             else:
-                return 'Shared, no CTG, not DE'
+                return 'Shared, no CIS/CTG, not DE'
         else:
             return 'Not shared'
 

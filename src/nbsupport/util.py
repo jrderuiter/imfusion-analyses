@@ -112,16 +112,20 @@ def read_star_junctions(file_path):
 def tidy_shared_axes(fig, axes, ylabel_x=0):
     """Removes duplicate labels from shared axes."""
 
-    for row in axes[:-1]:
-        for ax in row:
-            ax.set_xticks([])
+    if len(axes.shape) > 1:
+        for row in axes[:-1]:
+            for ax in row:
+                ax.set_xticks([])
 
-    ylabel = axes[0, 0].get_ylabel()
+        ylabel = axes[0, 0].get_ylabel()
 
-    for ax in axes.flatten():
-        ax.set_ylabel('')
+        for ax in axes.flatten():
+            ax.set_ylabel('')
 
-    fig.text(x=ylabel_x, y=0.5, s=ylabel, va='center', rotation=90)
+        fig.text(x=ylabel_x, y=0.5, s=ylabel, va='center', rotation=90)
+    else:
+        for ax in axes[1:]:
+            ax.set_ylabel('')
 
 
 def idxstats(file_path):

@@ -12,5 +12,11 @@ __pycache__
 .DS_Store
 ._*
 
+.genemap.sqlite
+_pybiomart_cache.sqlite
+
 _old
+_bak
+logs/*
+reports/*
 tmp

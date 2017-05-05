@@ -18,7 +18,8 @@ METHOD_PALETTE = dict(
 
 def match_rnaseq_insertions(rna_insertions,
                             dna_insertions,
-                            keep_unmatched=False):
+                            keep_unmatched=False,
+                            with_gene_name=False):
     """Matches rnaseq insertions to compatible dnaseq insertions."""
 
     # Generate matches.
@@ -57,6 +58,15 @@ def match_rnaseq_insertions(rna_insertions,
             axis=0,
             ignore_index=True)
         matches = matches[['rna_id', 'dna_id', 'sample', 'gene_id']]
+
+    if with_gene_name:
+        rna_mapping = dict(zip(rna_insertions['gene_id'],
+                               rna_insertions['gene_name']))
+        dna_mapping = dict(zip(dna_insertions['gene_id'],
+                               dna_insertions['gene_name']))
+        mapping = toolz.merge(rna_mapping, dna_mapping)
+
+        matches['gene_name'] = matches['gene_id'].map(mapping)
 
     return matches
 
@@ -133,7 +143,11 @@ def _filter_compatible_location(rna_insertion, dna_candidates):
 def annotate_dna_info(matches, dna_insertions):
     """Annotate matches with metadata from the DNA insertion."""
 
-    subset = dna_insertions[['id', 'position', 'support']]
+    cols = ['id', 'position', 'support']
+    if 'clonality' in dna_insertions.columns:
+        cols.append('clonality')
+
+    subset = dna_insertions[cols]
     subset = subset.rename(columns=lambda c: 'dna_' + c)
 
     return pd.merge(matches, subset.drop_duplicates(), how='left', on='dna_id')
@@ -331,11 +345,11 @@ def _plot_distributions(matches,
     return ax
 
 
-def plot_dna_depth_bias(dna_matches, ax=None):
+def plot_dna_depth_bias(dna_matches, ax=None, var='dna_support'):
     """Plots distribution of DNA insertion depths per match type."""
     # TODO: Use clonality.
 
-    ax = _plot_distributions(dna_matches, var='dna_support', ax=ax)
+    ax = _plot_distributions(dna_matches, var=var, ax=ax)
 
     ax.set_title('Support bias (IM-Fusion)')
     ax.set_xlabel('Insertion support')

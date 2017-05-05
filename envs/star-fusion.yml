@@ -14,5 +14,5 @@ dependencies:
     - pyyaml
 
     # Star-fusion
-    - star-fusion
+    - star-fusion =0.5.4
     - repeatmasker
