@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Introduction &mdash; imfusion-analysis 1.0 documentation</title>
+  <title>Source code &mdash; imfusion-analysis 1.0 documentation</title>
   
 
   
@@ -35,8 +35,9 @@
         <link rel="index" title="Index"
               href="genindex.html"/>
         <link rel="search" title="Search" href="search.html"/>
-    <link rel="top" title="imfusion-analysis 1.0 documentation" href="#"/>
-        <link rel="next" title="Getting started" href="getting-started.html"/> 
+    <link rel="top" title="imfusion-analysis 1.0 documentation" href="index.html"/>
+        <link rel="next" title="Reference" href="reference.html"/>
+        <link rel="prev" title="Analysis notebooks" href="notebooks.html"/> 
 
   
   <script src="_static/js/modernizr.min.js"></script>
@@ -55,7 +56,7 @@
           
 
           
-            <a href="#" class="icon icon-home"> imfusion-analysis
+            <a href="index.html" class="icon icon-home"> imfusion-analysis
           
 
           
@@ -90,10 +91,10 @@
             
             
               <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="index.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="notebooks.html">Analysis notebooks</a></li>
-<li class="toctree-l1"><a class="reference internal" href="source.html">Source code</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Source code</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contact.html">Contact</a></li>
 </ul>
@@ -110,7 +111,7 @@
       <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
         
           <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
-          <a href="#">imfusion-analysis</a>
+          <a href="index.html">imfusion-analysis</a>
         
       </nav>
 
@@ -138,15 +139,15 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="#">Docs</a> &raquo;</li>
+      <li><a href="index.html">Docs</a> &raquo;</li>
         
-      <li>Introduction</li>
+      <li>Source code</li>
     
     
       <li class="wy-breadcrumbs-aside">
         
             
-            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/source.rst.txt" rel="nofollow"> View page source</a>
           
         
       </li>
@@ -159,19 +160,46 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <div class="section" id="introduction">
-<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
-<p>This repository accompanies the paper <em>&#8220;Identifying transposon insertions and
-their effects from RNA-sequencing data&#8221;</em>, which describes a method for
-identifying transposon insertion sites in insertional mutagenesis screens using
-single- and paired-end RNA-sequencing data.</p>
-<p>The <a class="reference external" href="https://github.com/jrderuiter/ilc-sb-screen/tree/master/notebooks">repository</a> provides the files and code needed to reproduce the
-computational analyses used in the paper. For an overview of how to setup
-the used environment and download/generate the initial datasets, see
-<a class="reference internal" href="getting-started.html#getting-started"><span class="std std-ref">Getting started</span></a>. For the actual analyses and corresponding results
-(Figures/Tables), see <a class="reference internal" href="notebooks.html#analysis-notebooks"><span class="std std-ref">Analysis notebooks</span></a>.</p>
-<div class="toctree-wrapper compound">
+  <div class="section" id="source-code">
+<h1>Source code<a class="headerlink" href="#source-code" title="Permalink to this headline">¶</a></h1>
+<p>The notebooks and other source code are available on <a class="reference external" href="https://github.com/jrderuiter/imfusion-analysis">GitHub</a>. This includes
+the pre-processing pipelines and data files required to reproduce the
+RNA-seq and insertion analyses.</p>
+<p>The repository has the following structure:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span>├── environment.yml    &lt;- File describing the conda environment.
+├── LICENSE
+├── Makefile           &lt;- Makefile with commands.
+├── README.md          &lt;- The top-level README for developers using this project.
+│
+├── configs            &lt;- Configs for the Snakemake pipelines.
+│
+├── data
+│   ├── external       &lt;- Data from third party sources.
+│   ├── interim        &lt;- Intermediate data that has been transformed.
+│   ├── processed      &lt;- The final, canonical data sets for the analyses.
+│   └── raw            &lt;- The original, immutable data dump.
+│
+├── docs               &lt;- Source for this documentation.
+│
+├── notebooks          &lt;- Jupyter notebooks.
+│
+├── pipelines          &lt;- Snakemake pipeline definitions.
+│
+├── references         &lt;- Data dictionaries, manuals, and all other explanatory materials.
+│
+├── reports            &lt;- Generated analysis as HTML, PDF, LaTeX, etc.
+│   │── figures        &lt;- Main figure panels.
+│   │── supplemental   &lt;- Supplemental figures/tables.
+│   └── tables         &lt;- Main tables.
+│
+└── src                &lt;- Source code for use in this project.
+   └── nbsupport       &lt;- Module containing notebook supporting code.
+</pre></div>
 </div>
+<p>The main analyses are described in the Jupyter notebooks. Supporting code
+is provided in the <em>nbsupport</em> module under the <em>src</em> directory. Figures/Tables
+generated by the notebooks are stored in the appropriate location under the
+<em>reports</em> directory.</p>
 </div>
 
 
@@ -184,8 +212,10 @@ the used environment and download/generate the initial datasets, see
   
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="getting-started.html" class="btn btn-neutral float-right" title="Getting started" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="reference.html" class="btn btn-neutral float-right" title="Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
+      
+        <a href="notebooks.html" class="btn btn-neutral" title="Analysis notebooks" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
   
