@@ -16,13 +16,13 @@ Documentation
 -------------
 
 Documentation is available at
-[https://jrderuiter.github.io/imfusion-analysis](https://jrderuiter.github.io/imfusion-analysis).
+[https://jrderuiter.github.io/imfusion-analyses](https://jrderuiter.github.io/imfusion-analyses).
 
 Reference
 ---------
 
-de Ruiter, J.R. et al. Identifying transposon insertions and their effects
-from RNA-sequencing data. *Under revision.*
+de Ruiter J.R., Kas S.M. *et al.* **"Identifying transposon insertions and their
+effects from RNA-sequencing data"** Nucleic Acids Research 2017, *in press*.
 
 Contact
 -------
