@@ -113,7 +113,7 @@ def plot_insertion(insertion,
         hue='orientation',
         palette=palette,
         hue_order=['sense', 'antisense'],
-        patch_kws={'lw': 0.5, 'edgecolor': 'black'})
+        patch_kws={'linewidth': 0.5, 'edgecolor': 'black'})
 
     # Gene track.
     gene_track = BiomartTrack(
@@ -315,7 +315,7 @@ def plot_insertion_track(insertions,
         filter=filter,
         gene_id='gene_name',
         patch_kws={'linewidth': linewidth},
-        line_kws={'lw': 1},
+        line_kws={'linewidth': 1},
         label_kws={'fontstyle': 'italic'},
         bm_gene_name=bm_gene_name)
 
