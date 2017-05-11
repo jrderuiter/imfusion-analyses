@@ -45,7 +45,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'imfusion-analysis'
+project = u'imfusion-analyses'
 copyright = u'2017, Julian de Ruiter'
 author = u'Julian de Ruiter'
 
@@ -170,7 +170,7 @@ html_static_path = ['_static']
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'imfusion-analysis-doc'
+htmlhelp_basename = 'imfusion-analyses-doc'
 
 # -- Options for LaTeX output --------------------------------------------------
 
